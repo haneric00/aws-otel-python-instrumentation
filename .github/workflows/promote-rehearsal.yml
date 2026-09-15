@@ -1,0 +1,66 @@
+name: Promote Rehearsal (006 test account)
+on:
+  push:
+    branches: [rehearsal-006]
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+env:
+  REG: 006233413485.dkr.ecr.us-west-2.amazonaws.com
+  STAGING_REPO: aws-observability/adot-autoinstrumentation-python-staging
+  RELEASE_REPO: adot-autoinstrumentation-python
+  REGION: us-west-2
+  ROLE: arn:aws:iam::006233413485:role/adot-release-rehearsal
+jobs:
+  rehearse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials (OIDC -> 006 rehearsal role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE }}
+          aws-region: ${{ env.REGION }}
+      - name: Log in to 006 ECR
+        run: aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REG"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # Stands in for main-build's artifacts_build: build the real image, push to staging.
+      - name: Build + push staging image
+        run: docker buildx build --platform linux/amd64,linux/arm64 -t "$REG/$STAGING_REPO:rehearsal" --push -f ./Dockerfile .
+
+      # VERBATIM from main-build.yml "Record staging image digest for release promotion"
+      - name: Record staging image digest
+        run: |
+          DIGEST=$(docker buildx imagetools inspect "$REG/$STAGING_REPO:rehearsal" --format '{{.Manifest.Digest}}')
+          if [ -z "$DIGEST" ]; then echo "ERROR: could not resolve staging image digest"; exit 1; fi
+          echo "$REG/$STAGING_REPO@${DIGEST}" | tee staging-image.txt
+
+      # VERBATIM from release-build.yml "Promote validated main-build image to release ECRs",
+      # plus a safety gate: refuse to publish to any account other than the 006 test account.
+      - name: Promote validated image (gated to 006 only)
+        env:
+          ALLOWED_ACCOUNT: "006233413485"
+        run: |
+          set -euo pipefail
+          validated_image="$(cat staging-image.txt)"
+          TARGET="$REG/$RELEASE_REPO:v0.0.0-rehearsal"
+
+          # HALT if we are about to publish anywhere but 006.
+          acct=$(printf '%s' "$TARGET" | sed -nE 's#^([0-9]{12})\.dkr\.ecr\..*#\1#p')
+          if [ "$acct" != "$ALLOWED_ACCOUNT" ]; then
+            echo "HALT: promote target account '$acct' is not the allowed test account $ALLOWED_ACCOUNT ($TARGET)"
+            exit 1
+          fi
+          echo "Publishing to allowed test account $ALLOWED_ACCOUNT: $TARGET"
+
+          docker buildx imagetools create --tag "$TARGET" "$validated_image"
+
+      - name: Verify promoted image landed + digest matches
+        run: |
+          SRC=$(docker buildx imagetools inspect "$REG/$STAGING_REPO:rehearsal" --format '{{.Manifest.Digest}}')
+          DST=$(docker buildx imagetools inspect "$REG/$RELEASE_REPO:v0.0.0-rehearsal" --format '{{.Manifest.Digest}}')
+          echo "staging digest: $SRC"; echo "release digest: $DST"
+          [ "$SRC" = "$DST" ] && echo "PASS: promoted digest matches validated image" || { echo "FAIL: digest mismatch"; exit 1; }
