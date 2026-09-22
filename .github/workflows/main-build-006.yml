@@ -197,6 +197,7 @@ jobs:
       ref: ${{ github.sha }}
 
   application-signals-e2e-test:
+    if: false  # 006 TEST: needs prod OIDC roles; not part of artifact propagation
     name: "Application Signals E2E Test"
     needs: [ build ]
     uses: ./.github/workflows/application-signals-e2e-test.yml
