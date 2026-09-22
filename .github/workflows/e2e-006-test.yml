@@ -1,0 +1,72 @@
+name: E2E 006 Test (main-build -> release promote, no prod)
+on:
+  push:
+    branches: [fork-006-e2e]
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+env:
+  REG: 006233413485.dkr.ecr.us-west-2.amazonaws.com
+  STAGING_REPO: aws-observability/adot-autoinstrumentation-python-staging
+  RELEASE_REPO: adot-autoinstrumentation-python
+  REGION: us-west-2
+  ROLE: arn:aws:iam::006233413485:role/adot-release-rehearsal
+  VERSION: 0.0.0-e2e
+jobs:
+  main-build:
+    runs-on: ubuntu-latest
+    outputs:
+      digest_ref: ${{ steps.record.outputs.ref }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
+      - name: Configure AWS credentials (OIDC -> 006)
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 #v5.0.0
+        with:
+          role-to-assume: ${{ env.ROLE }}
+          aws-region: ${{ env.REGION }}
+      - name: Log in to 006 ECR
+        run: aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REG"
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 #3.6.0
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
+      - name: "[main-build] build + push multi-arch staging image"
+        run: |
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            -t "$REG/$STAGING_REPO:${VERSION}-${GITHUB_SHA::7}" --push -f ./Dockerfile .
+      # VERBATIM from main-build.yml: record the pushed image digest
+      - name: "[main-build] record staging image digest"
+        id: record
+        run: |
+          DIGEST=$(docker buildx imagetools inspect "$REG/$STAGING_REPO:${VERSION}-${GITHUB_SHA::7}" --format '{{.Manifest.Digest}}')
+          ref="$REG/$STAGING_REPO@$DIGEST"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "=== MAIN BUILD ARTIFACT IDENTITY ==="
+          echo "commit:            $GITHUB_SHA"
+          echo "staging image ref: $ref"
+  release:
+    needs: main-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials (OIDC -> 006)
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 #v5.0.0
+        with:
+          role-to-assume: ${{ env.ROLE }}
+          aws-region: ${{ env.REGION }}
+      - name: Log in to 006 ECR
+        run: aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REG"
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
+      # VERBATIM from release-build.yml: promote the validated image by digest
+      - name: "[release] promote validated main-build image"
+        run: |
+          validated_image="${{ needs.main-build.outputs.digest_ref }}"
+          echo "=== PROMOTED ARTIFACT IDENTITY ==="
+          echo "promoting: $validated_image"
+          docker buildx imagetools create --tag "$REG/$RELEASE_REPO:v${VERSION}" "$validated_image"
+      - name: "[release] verify released image == main-build image"
+        run: |
+          set -euo pipefail
+          src_ref="${{ needs.main-build.outputs.digest_ref }}"; src="${src_ref#*@}"
+          dst=$(docker buildx imagetools inspect "$REG/$RELEASE_REPO:v${VERSION}" --format '{{.Manifest.Digest}}')
+          echo "main-build digest: $src"
+          echo "released  digest: $dst"
+          if [ "$src" = "$dst" ]; then echo "PASS: release promoted the exact main-build image"; else echo "FAIL"; exit 1; fi
