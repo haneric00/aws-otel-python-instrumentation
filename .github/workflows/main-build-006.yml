@@ -33,7 +33,7 @@ jobs:
       - name: Checkout Repo @ SHA - ${{ github.sha }}
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ github.sha }}
 
       - name: Get Python Distro Output
         id: python_output
@@ -140,7 +140,7 @@ jobs:
       - name: Checkout Repo @ SHA - ${{ github.sha }}
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ github.sha }}
 
       - name: Build cloudwatch-plugin-otel distributions
         id: plugin_build
@@ -164,7 +164,7 @@ jobs:
       - name: Checkout Repo @ SHA - ${{ github.sha }}
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ github.sha }}
 
       - name: Download distro wheel
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 #v5.0.0
@@ -194,7 +194,7 @@ jobs:
     uses: ./.github/workflows/contract-tests.yml
     with:
       python-version: ${{ matrix.python-version }}
-      ref: ${{ inputs.ref || github.sha }}
+      ref: ${{ github.sha }}
 
   application-signals-e2e-test:
     name: "Application Signals E2E Test"
