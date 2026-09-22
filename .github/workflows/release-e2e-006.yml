@@ -1,0 +1,85 @@
+name: Release E2E 006 (build -> promote, one workflow)
+on:
+  push:
+    branches: [fork-006-all]
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+env:
+  STAGING_ECR_REGISTRY: 006233413485.dkr.ecr.us-west-2.amazonaws.com
+  STAGING_ECR_REPOSITORY: aws-observability/adot-autoinstrumentation-python-staging
+  RELEASE_REPO: 006233413485.dkr.ecr.us-west-2.amazonaws.com/adot-autoinstrumentation-python
+  ROLE: arn:aws:iam::006233413485:role/adot-release-rehearsal
+  REGION: us-west-2
+jobs:
+  # ---- mirrors main-build's build job (real artifacts_build + digest record), pointed at 006 ----
+  main-build:
+    runs-on: ubuntu-latest
+    outputs:
+      digest_ref: ${{ steps.record.outputs.ref }}
+      version: ${{ steps.py.outputs.version }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
+      - name: Get Python Distro Output
+        id: py
+        run: |
+          pkg_version=$(grep '__version__' ./aws-opentelemetry-distro/src/amazon/opentelemetry/distro/version.py | awk -F '"' '{print $2}')
+          echo "version=$pkg_version" >> "$GITHUB_OUTPUT"
+          echo "stagingImage=${STAGING_ECR_REGISTRY}/${STAGING_ECR_REPOSITORY}:${pkg_version}-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Build and Push Wheel and Image Files
+        uses: ./.github/actions/artifacts_build
+        with:
+          aws-region: ${{ env.REGION }}
+          image_uri_with_tag: ${{ steps.py.outputs.stagingImage }}
+          image_registry: ${{ env.STAGING_ECR_REGISTRY }}
+          snapshot-ecr-role: ${{ env.ROLE }}
+          push_image: true
+          load_image: false
+          python_version: "3.10"
+          package_name: aws-opentelemetry-distro
+          os: ubuntu-latest
+          platforms: linux/amd64,linux/arm64
+      # VERBATIM from main-build.yml: record the pushed digest
+      - name: Record staging image digest for release promotion
+        id: record
+        run: |
+          DIGEST=$(docker buildx imagetools inspect "${{ steps.py.outputs.stagingImage }}" --format '{{.Manifest.Digest}}')
+          ref="${STAGING_ECR_REGISTRY}/${STAGING_ECR_REPOSITORY}@${DIGEST}"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "=== MAIN BUILD ARTIFACT IDENTITY ==="
+          echo "commit:            ${GITHUB_SHA}"
+          echo "wheel version:     ${{ steps.py.outputs.version }}"
+          echo "staging image ref: $ref"
+
+  # ---- mirrors release-build's promote (real imagetools create), pointed at 006 ----
+  release:
+    needs: main-build
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.main-build.outputs.version }}
+      VALIDATED_IMAGE: ${{ needs.main-build.outputs.digest_ref }}
+    steps:
+      - name: Configure AWS credentials (OIDC -> 006)
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 #v5.0.0
+        with:
+          role-to-assume: ${{ env.ROLE }}
+          aws-region: ${{ env.REGION }}
+      - name: Log in to 006 ECR
+        run: aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$STAGING_ECR_REGISTRY"
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
+      - name: Promote validated main-build image to release ECRs
+        run: |
+          set -euo pipefail
+          echo "=== PROMOTED ARTIFACT IDENTITY ==="
+          echo "promoting: $VALIDATED_IMAGE"
+          echo "as:        ${RELEASE_REPO}:v${VERSION}"
+          docker buildx imagetools create --tag "${RELEASE_REPO}:v${VERSION}" "$VALIDATED_IMAGE"
+      - name: Verify released image == main-build image
+        run: |
+          set -euo pipefail
+          src="${VALIDATED_IMAGE#*@}"
+          dst=$(docker buildx imagetools inspect "${RELEASE_REPO}:v${VERSION}" --format '{{.Manifest.Digest}}')
+          echo "main-build digest: $src"
+          echo "released  digest: $dst"
+          [ "$src" = "$dst" ] && echo "PASS: release promoted the exact main-build image" || { echo "FAIL"; exit 1; }
