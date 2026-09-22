@@ -53,7 +53,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           branch: fork-006-copies  # 006 TEST: where main-build-006 ran
-          workflow-name: Python Instrumentation Main Build (006 test)
+          workflow-name: .github/workflows/main-build-006.yml  # 006 TEST: fork registers non-default-branch workflows by path
           # Pin to the main build of the exact commit being released (not just "latest on branch"),
           # so the wheel + image promoted are the ones built from this commit.
           head-sha: ${{ github.sha }}
