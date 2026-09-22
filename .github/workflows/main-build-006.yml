@@ -220,7 +220,6 @@ jobs:
   #     actions: write
 
   publish-main-build-status:
-    if: false  # 006 TEST: not part of artifact propagation
     name: "Publish Main Build Status"
     needs: [ build, build-cloudwatch-plugin-otel, unit-tests, contract-tests, application-signals-e2e-test ]
     runs-on: ubuntu-latest
