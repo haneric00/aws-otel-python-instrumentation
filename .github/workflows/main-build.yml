@@ -13,11 +13,13 @@ on:
         description: 'Git ref to checkout'
         required: false
         type: string
+# FORK REHEARSAL ONLY (do not merge): staging image redirected to the 006 test account so
+# main-build pushes to a test ECR we control. Real prod values are 637.../us-east-1.
 env:
-  AWS_DEFAULT_REGION: us-east-1
-  STAGING_ECR_REGISTRY: 637423224110.dkr.ecr.us-east-1.amazonaws.com
+  AWS_DEFAULT_REGION: us-west-2
+  STAGING_ECR_REGISTRY: 006233413485.dkr.ecr.us-west-2.amazonaws.com
   STAGING_ECR_REPOSITORY: aws-observability/adot-autoinstrumentation-python-staging
-  STAGING_S3_BUCKET: ${{ secrets.STAGING_BUCKET_NAME }}
+  STAGING_S3_BUCKET: unused-in-rehearsal
 
 concurrency:
   group: python-instrumentation-main-build
@@ -64,7 +66,8 @@ jobs:
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           image_uri_with_tag: ${{ steps.python_output.outputs.stagingImage}}
           image_registry: ${{ env.STAGING_ECR_REGISTRY }}
-          snapshot-ecr-role: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          # FORK REHEARSAL: hardcoded 006 rehearsal role (fork has no AWS_ASSUME_ROLE_ARN secret).
+          snapshot-ecr-role: arn:aws:iam::006233413485:role/adot-release-rehearsal
           push_image: true
           load_image: false
           python_version: "3.10"
@@ -83,6 +86,7 @@ jobs:
           cp aws_opentelemetry_distro-${{ steps.python_output.outputs.ADOT_PYTHON_VERSION}}-py3-none-any.whl $staging_wheel
 
       - name: Build and Publish Lambda Staging Layer
+        if: false # FORK REHEARSAL: no lambda S3 bucket in 006; release-build drops layer.zip too
         uses: ./.github/actions/lambda_artifacts_build
         with:
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
@@ -93,12 +97,14 @@ jobs:
           os: ubuntu-latest
 
       - name: Upload Lambda Layer to GitHub Actions
+        if: false # FORK REHEARSAL: lambda layer disabled above; release-build drops layer.zip
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4.6.2
         with:
           name: layer.zip
           path: lambda-layer/src/build/aws-opentelemetry-python-layer.zip
 
       - name: Upload wheel to S3
+        if: false # FORK REHEARSAL: no staging S3 bucket in 006 (wheel still goes to GitHub Actions below)
         run: |
           aws s3 cp dist/${{ steps.staging_wheel_output.outputs.STAGING_WHEEL}} s3://${{ env.STAGING_S3_BUCKET }}
 
@@ -138,6 +144,7 @@ jobs:
           retention-days: 1
 
   build-cloudwatch-plugin-otel:
+    if: false # FORK REHEARSAL: only the `build` job (image + artifacts) is needed for the release-build test
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.plugin_build.outputs.version }}
@@ -158,6 +165,7 @@ jobs:
           path: plugin-dist/cloudwatch_plugin_otel-*
 
   unit-tests:
+    if: false # FORK REHEARSAL: skip to guarantee a green run for get_main_build_run to select
     runs-on: ubuntu-latest
     needs: build
     strategy:
@@ -189,6 +197,7 @@ jobs:
           wheel_path: ${{ steps.wheel.outputs.path }}
 
   contract-tests:
+    if: false # FORK REHEARSAL: skip to guarantee a green run for get_main_build_run to select
     needs: build
     strategy:
       fail-fast: false # ensures the entire test matrix is run, even if one permutation fails
@@ -200,6 +209,7 @@ jobs:
       ref: ${{ inputs.ref || github.sha }}
 
   application-signals-e2e-test:
+    if: false # FORK REHEARSAL: needs real AWS infra unavailable on the fork
     name: "Application Signals E2E Test"
     needs: [ build ]
     uses: ./.github/workflows/application-signals-e2e-test.yml

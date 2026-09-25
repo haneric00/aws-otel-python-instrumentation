@@ -10,16 +10,19 @@ on:
         required: true
         default: 'us-east-1, us-east-2, us-west-1, us-west-2, ap-south-1, ap-northeast-3, ap-northeast-2, ap-southeast-1, ap-southeast-2, ap-northeast-1, ca-central-1, eu-central-1, eu-west-1, eu-west-2, eu-west-3, eu-north-1, sa-east-1, af-south-1, ap-east-1, ap-south-2, ap-southeast-3, ap-southeast-4, eu-central-2, eu-south-1, eu-south-2, il-central-1, me-central-1, ap-southeast-5, ap-southeast-7, mx-central-1, ca-west-1, cn-north-1, cn-northwest-1, ap-east-2, ap-southeast-6'
 
+# FORK REHEARSAL ONLY (do not merge): staging source and release target both redirected to the
+# 006 test account (us-west-2). Public ECR + PyPI are disabled below so nothing is published.
+# Real prod values: staging 637/us-east-1, release public.ecr.aws + 020.../us-west-2.
 env:
   AWS_DEFAULT_REGION: us-east-1
   AWS_PUBLIC_ECR_REGION: us-east-1
   AWS_PRIVATE_ECR_REGION: us-west-2
-  AWS_STAGING_ECR_REGION: us-east-1
+  AWS_STAGING_ECR_REGION: us-west-2
   RELEASE_PUBLIC_REPOSITORY: public.ecr.aws/aws-observability/adot-autoinstrumentation-python
-  RELEASE_PRIVATE_REPOSITORY: 020628701572.dkr.ecr.us-west-2.amazonaws.com/adot-autoinstrumentation-python
-  RELEASE_PRIVATE_REGISTRY: 020628701572.dkr.ecr.us-west-2.amazonaws.com
-  # Main build pushes the validated multi-arch image here (a different AWS account); release promotes it.
-  STAGING_ECR_REGISTRY: 637423224110.dkr.ecr.us-east-1.amazonaws.com
+  RELEASE_PRIVATE_REPOSITORY: 006233413485.dkr.ecr.us-west-2.amazonaws.com/adot-autoinstrumentation-python
+  RELEASE_PRIVATE_REGISTRY: 006233413485.dkr.ecr.us-west-2.amazonaws.com
+  # FORK REHEARSAL: staging image lives in the 006 test account (main-build pushed it there).
+  STAGING_ECR_REGISTRY: 006233413485.dkr.ecr.us-west-2.amazonaws.com
   STAGING_ECR_REPOSITORY: aws-observability/adot-autoinstrumentation-python-staging
   PACKAGE_NAME: aws-opentelemetry-distro
   VERSION: ${{ github.event.inputs.version }}
@@ -68,7 +71,7 @@ jobs:
           RUN_ID: ${{ steps.main_build.outputs.run_id }}
         run: |
           gh run download "$RUN_ID" -n release-artifacts -D dist
-          gh run download "$RUN_ID" -n layer.zip -D layer
+          # FORK REHEARSAL: main-build's lambda layer is disabled, so no layer.zip artifact exists.
           gh run download "$RUN_ID" -n staging-image -D staging-ref
 
       # Guard against a mis-typed version: the wheel built by the selected run must carry the exact
@@ -98,6 +101,7 @@ jobs:
           path: dist/${{ env.SOURCE_ARTIFACT_NAME }}
 
       - name: Upload layer artifact
+        if: false # FORK REHEARSAL: no layer.zip in this run (lambda disabled in main-build)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4.6.2
         with:
           name: layer.zip
@@ -138,7 +142,8 @@ jobs:
       - name: Configure AWS credentials for staging ECR (image source)
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 #v5.0.0
         with:
-          role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          # FORK REHEARSAL: 006 rehearsal role (staging image lives in 006 here).
+          role-to-assume: arn:aws:iam::006233413485:role/adot-release-rehearsal
           aws-region: ${{ env.AWS_STAGING_ECR_REGION }}
 
       - name: Log in to staging ECR
@@ -149,7 +154,8 @@ jobs:
       - name: Configure AWS credentials for private ECR
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 #v5.0.0
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_ECR_RELEASE }}
+          # FORK REHEARSAL: 006 rehearsal role (release target redirected to 006).
+          role-to-assume: arn:aws:iam::006233413485:role/adot-release-rehearsal
           aws-region: ${{ env.AWS_PRIVATE_ECR_REGION }}
 
       - name: Log in to AWS private ECR
@@ -158,12 +164,14 @@ jobs:
           registry: ${{ env.RELEASE_PRIVATE_REGISTRY }}
 
       - name: Configure AWS credentials for public ECR
+        if: false # FORK REHEARSAL: public ECR not published; promote pushes only the private (006) tag
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 #v5.0.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_ECR_RELEASE }}
           aws-region: ${{ env.AWS_PUBLIC_ECR_REGION }}
 
       - name: Log in to AWS public ECR
+        if: false # FORK REHEARSAL: public ECR not published
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 #v3.5.0
         with:
           registry: public.ecr.aws
@@ -197,13 +205,14 @@ jobs:
           # Copy that one multi-arch image (all architectures + attestations) into both release
           # repos under the v<version> tag. imagetools copies the manifest by reference, so no
           # rebuild happens and the released bits are identical to what main-build validated.
+          # FORK REHEARSAL: public.ecr.aws tag dropped; promote only to the 006 private repo.
           docker buildx imagetools create \
-            --tag "${{ env.RELEASE_PUBLIC_REPOSITORY }}:v${{ env.VERSION }}" \
             --tag "${{ env.RELEASE_PRIVATE_REPOSITORY }}:v${{ env.VERSION }}" \
             "$validated_image"
 
       # The step below publishes to TestPyPI in order to catch any issues
       - name: Publish to TestPyPI
+        if: false # FORK REHEARSAL: do not publish anything to PyPI
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e #v1.13.0
         with:
           repository-url: https://test.pypi.org/legacy/
@@ -214,6 +223,7 @@ jobs:
 
       # Publish to prod PyPI
       - name: Publish to PyPI
+        if: false # FORK REHEARSAL: do not publish anything to PyPI
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e #v1.13.0
         with:
           skip-existing: true
@@ -299,6 +309,11 @@ jobs:
           done
   
   publish-layer-prod:
+    # FORK REHEARSAL ONLY (do not merge): skip all lambda-layer + GitHub-release + public-ECR-sign
+    # jobs. This job is the head of the remaining publish chain (publish-layer-prod ->
+    # generate-lambda-release-note -> publish-github -> sign-public-ecr-image), so `if: false`
+    # cascade-skips all of them. Only download-artifacts + publish-sdk (promote to 006) run.
+    if: false
     runs-on: ubuntu-latest
     needs: [download-artifacts, publish-sdk]
     strategy:
