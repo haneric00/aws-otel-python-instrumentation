@@ -16,10 +16,10 @@ env:
   AWS_PRIVATE_ECR_REGION: us-west-2
   AWS_STAGING_ECR_REGION: us-east-1
   RELEASE_PUBLIC_REPOSITORY: public.ecr.aws/aws-observability/adot-autoinstrumentation-python
-  RELEASE_PRIVATE_REPOSITORY: 020628701572.dkr.ecr.us-west-2.amazonaws.com/adot-autoinstrumentation-python
-  RELEASE_PRIVATE_REGISTRY: 020628701572.dkr.ecr.us-west-2.amazonaws.com
+  RELEASE_PRIVATE_REPOSITORY: 006233413485.dkr.ecr.us-west-2.amazonaws.com/adot-autoinstrumentation-python
+  RELEASE_PRIVATE_REGISTRY: 006233413485.dkr.ecr.us-west-2.amazonaws.com
   # Main build pushes the validated multi-arch image here (a different AWS account); release promotes it.
-  STAGING_ECR_REGISTRY: 637423224110.dkr.ecr.us-east-1.amazonaws.com
+  STAGING_ECR_REGISTRY: 006233413485.dkr.ecr.us-east-1.amazonaws.com # FORK REHEARSAL (prod: 637423224110)
   STAGING_ECR_REPOSITORY: aws-observability/adot-autoinstrumentation-python-staging
   PACKAGE_NAME: aws-opentelemetry-distro
   VERSION: ${{ github.event.inputs.version }}
@@ -158,12 +158,14 @@ jobs:
           registry: ${{ env.RELEASE_PRIVATE_REGISTRY }}
 
       - name: Configure AWS credentials for public ECR
+        if: false # FORK REHEARSAL: public ECR (public)
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 #v5.0.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_ECR_RELEASE }}
           aws-region: ${{ env.AWS_PUBLIC_ECR_REGION }}
 
       - name: Log in to AWS public ECR
+        if: false # FORK REHEARSAL: public ECR (public)
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 #v3.5.0
         with:
           registry: public.ecr.aws
@@ -198,12 +200,12 @@ jobs:
           # repos under the v<version> tag. imagetools copies the manifest by reference, so no
           # rebuild happens and the released bits are identical to what main-build validated.
           docker buildx imagetools create \
-            --tag "${{ env.RELEASE_PUBLIC_REPOSITORY }}:v${{ env.VERSION }}" \
             --tag "${{ env.RELEASE_PRIVATE_REPOSITORY }}:v${{ env.VERSION }}" \
             "$validated_image"
 
       # The step below publishes to TestPyPI in order to catch any issues
       - name: Publish to TestPyPI
+        if: false # FORK REHEARSAL: no TestPyPI publish (public)
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e #v1.13.0
         with:
           repository-url: https://test.pypi.org/legacy/
@@ -214,6 +216,7 @@ jobs:
 
       # Publish to prod PyPI
       - name: Publish to PyPI
+        if: false # FORK REHEARSAL: no PyPI publish (public)
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e #v1.13.0
         with:
           skip-existing: true
@@ -385,6 +388,7 @@ jobs:
             --arn $layerARN \
             --output json | jq -r '.Content.SigningProfileVersionArn'
       - name: public layer
+        if: false # FORK REHEARSAL: no public layer permission (--principal *)
         run: |
           layerVersion=$(
             aws lambda list-layer-versions \
@@ -504,6 +508,7 @@ jobs:
 
       # Publish to GitHub releases
       - name: Create GH release
+        if: false # FORK REHEARSAL: no public GitHub release
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -543,6 +548,7 @@ jobs:
   # publishing is done, and every step is continue-on-error so a signing failure
   # never fails the release run or affects already-published artifacts.
   sign-public-ecr-image:
+    if: false # FORK REHEARSAL: public image signing
     runs-on: ubuntu-latest
     needs: publish-github
     steps:
@@ -578,7 +584,7 @@ jobs:
 
       # Login to Public ECR
       - name: Log in to AWS public ECR
-        if: steps.ecr-signing-profile.outputs.profile_arn != ''
+        if: false # FORK REHEARSAL: public ECR (public)
         continue-on-error: true
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 #v3.5.0
         with:

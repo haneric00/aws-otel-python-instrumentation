@@ -15,7 +15,7 @@ on:
         type: string
 env:
   AWS_DEFAULT_REGION: us-east-1
-  STAGING_ECR_REGISTRY: 637423224110.dkr.ecr.us-east-1.amazonaws.com
+  STAGING_ECR_REGISTRY: 006233413485.dkr.ecr.us-east-1.amazonaws.com # FORK REHEARSAL (prod: 637423224110)
   STAGING_ECR_REPOSITORY: aws-observability/adot-autoinstrumentation-python-staging
   STAGING_S3_BUCKET: ${{ secrets.STAGING_BUCKET_NAME }}
 
@@ -207,6 +207,7 @@ jobs:
       ref: ${{ inputs.ref || github.sha }}
 
   application-signals-e2e-test:
+    if: false # FORK REHEARSAL: needs external E2E test-framework accounts
     name: "Application Signals E2E Test"
     needs: [ build ]
     uses: ./.github/workflows/application-signals-e2e-test.yml
