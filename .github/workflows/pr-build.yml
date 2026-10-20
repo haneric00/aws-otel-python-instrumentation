@@ -35,7 +35,7 @@ env:
 jobs:
   static-code-checks:
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
@@ -144,7 +144,7 @@ jobs:
 
   build-wheel:
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     # Skip on draft PRs and on label-only events; neither affects the build.
     if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' && github.event.pull_request.draft == false }}
     steps:
@@ -164,7 +164,7 @@ jobs:
 
   build-cloudwatch-plugin-otel:
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     # Skip on draft PRs and on label-only events; neither affects the build.
     if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' && github.event.pull_request.draft == false }}
     steps:
@@ -183,7 +183,7 @@ jobs:
 
   build-lambda:
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     # Skip on draft PRs and on label-only events; neither affects the build.
     if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' && github.event.pull_request.draft == false }}
     steps:
@@ -209,7 +209,7 @@ jobs:
 
   build-and-scan-image:
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     # Skip on draft PRs and on label-only events; neither affects the build.
     if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' && github.event.pull_request.draft == false }}
     strategy:
@@ -234,7 +234,7 @@ jobs:
 
   unit-tests:
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     needs: build-wheel
     # Skip on draft PRs and on label-only events; neither affects the tests.
     if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' && github.event.pull_request.draft == false }}
@@ -267,7 +267,7 @@ jobs:
   cloudwatch-plugin-otel-unit-tests:
     name: cloudwatch-plugin-otel-${{ matrix.otel }} ${{ matrix.python-version }} Ubuntu
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     timeout-minutes: 30
     # Skip on draft PRs and on label-only events; neither affects the tests.
     if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' && github.event.pull_request.draft == false }}
@@ -310,7 +310,7 @@ jobs:
 
   lint:
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     # Skip on draft PRs and on label-only events; neither affects lint/spellcheck.
     if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' && github.event.pull_request.draft == false }}
     strategy:
@@ -337,7 +337,7 @@ jobs:
 
   spotless:
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     # Skip on draft PRs and on label-only events; neither affects spotless.
     if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' && github.event.pull_request.draft == false }}
     steps:
@@ -367,7 +367,7 @@ jobs:
         || 'all-pr-checks-pass'
       }}
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:small"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     needs: [static-code-checks, lint, spotless, unit-tests, cloudwatch-plugin-otel-unit-tests, build-wheel, build-cloudwatch-plugin-otel, build-and-scan-image, contract-tests, build-lambda]
     if: always()
     steps:

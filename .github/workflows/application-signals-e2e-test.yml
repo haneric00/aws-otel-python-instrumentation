@@ -26,10 +26,7 @@ concurrency:
 
 jobs:
   upload-main-build:
-    runs-on:
-      - codebuild-adot-python-runner-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:ubuntu-8.0
-      - instance-size:small
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 #5.0.0

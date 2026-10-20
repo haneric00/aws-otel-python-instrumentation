@@ -32,7 +32,7 @@ permissions:
 jobs:
   select-tests:
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:small"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     outputs:
       tests: ${{ steps.filter.outputs.tests }}
     steps:
@@ -64,7 +64,7 @@ jobs:
   contract-test:
     needs: select-tests
     # Fork PRs run on GitHub-hosted runners; the CodeBuild webhook requires approval for them.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON(format('["codebuild-adot-python-runner-{0}-{1}", "image:ubuntu-8.0", "instance-size:large"]', github.run_id, github.run_attempt)) }}
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     strategy:
       fail-fast: false # ensures the entire test matrix is run, even if one permutation fails
       matrix:

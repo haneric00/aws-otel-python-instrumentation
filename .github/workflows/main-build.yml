@@ -15,7 +15,7 @@ on:
         type: string
 env:
   AWS_DEFAULT_REGION: us-east-1
-  STAGING_ECR_REGISTRY: 637423224110.dkr.ecr.us-east-1.amazonaws.com
+  STAGING_ECR_REGISTRY: 006233413485.dkr.ecr.us-east-1.amazonaws.com # FORK REHEARSAL (prod: 637423224110)
   STAGING_ECR_REPOSITORY: aws-observability/adot-autoinstrumentation-python-staging
   STAGING_S3_BUCKET: ${{ secrets.STAGING_BUCKET_NAME }}
 
@@ -29,10 +29,7 @@ permissions:
 
 jobs:
   build:
-    runs-on:
-      - codebuild-adot-python-runner-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:ubuntu-8.0
-      - instance-size:large
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     outputs:
       aws_default_region: ${{ steps.python_output.outputs.awsDefaultRegion}}
       python_image_tag: ${{ steps.python_output.outputs.python_image_tag}}
@@ -160,10 +157,7 @@ jobs:
           retention-days: 1
 
   build-cloudwatch-plugin-otel:
-    runs-on:
-      - codebuild-adot-python-runner-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:ubuntu-8.0
-      - instance-size:large
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     outputs:
       version: ${{ steps.plugin_build.outputs.version }}
     steps:
@@ -183,10 +177,7 @@ jobs:
           path: plugin-dist/cloudwatch_plugin_otel-*
 
   unit-tests:
-    runs-on:
-      - codebuild-adot-python-runner-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:ubuntu-8.0
-      - instance-size:large
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     needs: build
     strategy:
       fail-fast: false # ensures the entire test matrix is run, even if one permutation fails
@@ -231,6 +222,7 @@ jobs:
       ref: ${{ inputs.ref || github.sha }}
 
   application-signals-e2e-test:
+    if: false # FORK REHEARSAL: needs external E2E test-framework accounts
     name: "Application Signals E2E Test"
     needs: [ build ]
     uses: ./.github/workflows/application-signals-e2e-test.yml
@@ -245,10 +237,7 @@ jobs:
   publish-main-build-status:
     name: "Publish Main Build Status"
     needs: [ build, build-cloudwatch-plugin-otel, unit-tests, contract-tests, application-signals-e2e-test ]
-    runs-on:
-      - codebuild-adot-python-runner-${{ github.run_id }}-${{ github.run_attempt }}
-      - image:ubuntu-8.0
-      - instance-size:small
+    runs-on: ubuntu-latest # FORK REHEARSAL: no CodeBuild runners on fork
     if: always() && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/v'))
     steps:
       - name: Configure AWS Credentials for emitting metrics
